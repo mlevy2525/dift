@@ -157,6 +157,7 @@ class MyUNet2DConditionModel(UNet2DConditionModel):
 
         output = {}
         output['up_ft'] = up_ft
+
         return output
 
 class OneStepSDPipeline(StableDiffusionPipeline):
@@ -175,6 +176,7 @@ class OneStepSDPipeline(StableDiffusionPipeline):
     ):
 
         device = self._execution_device
+        img_tensor = img_tensor.to(torch.float16)
         latents = self.vae.encode(img_tensor).latent_dist.sample() * self.vae.config.scaling_factor
         t = torch.tensor(t, dtype=torch.long, device=device)
         noise = torch.randn_like(latents).to(device)
@@ -190,12 +192,15 @@ class OneStepSDPipeline(StableDiffusionPipeline):
 class SDFeaturizer:
     def __init__(self, sd_id='stabilityai/stable-diffusion-2-1', null_prompt='', device='cuda'):
         self.device = device
-        unet = MyUNet2DConditionModel.from_pretrained(sd_id, subfolder="unet")
-        onestep_pipe = OneStepSDPipeline.from_pretrained(sd_id, unet=unet, safety_checker=None)
+        unet = MyUNet2DConditionModel.from_pretrained(sd_id, subfolder="unet", torch_dtype=torch.float16).to(torch.float16)
+        onestep_pipe = OneStepSDPipeline.from_pretrained(sd_id, unet=unet, safety_checker=None, torch_dtype=torch.float16)
         onestep_pipe.vae.decoder = None
         onestep_pipe.scheduler = DDIMScheduler.from_pretrained(sd_id, subfolder="scheduler")
         gc.collect()
         onestep_pipe = onestep_pipe.to(self.device)
+        onestep_pipe.enable_sequential_cpu_offload()
+        onestep_pipe.vae.enable_slicing()
+        onestep_pipe.vae.enable_tiling()
         onestep_pipe.enable_attention_slicing()
         onestep_pipe.enable_xformers_memory_efficient_attention()
         null_prompt_embeds = onestep_pipe._encode_prompt(
