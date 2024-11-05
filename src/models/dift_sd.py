@@ -197,8 +197,8 @@ class SDFeaturizer:
         onestep_pipe.vae.decoder = None
         onestep_pipe.scheduler = DDIMScheduler.from_pretrained(sd_id, subfolder="scheduler")
         gc.collect()
-        onestep_pipe = onestep_pipe.to(self.device)
-        onestep_pipe.enable_sequential_cpu_offload()
+        # onestep_pipe = onestep_pipe.to(self.device)
+        onestep_pipe.enable_model_cpu_offload()
         onestep_pipe.vae.enable_slicing()
         onestep_pipe.vae.enable_tiling()
         onestep_pipe.enable_attention_slicing()
